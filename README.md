@@ -1,9 +1,9 @@
 # salesforce-flow-coverage
 Python script to report on salesforce flow coverage for your org
 
-Before executing this script, make sure you have the following installed locally
-  Python
-  Python Requests library
+Before executing this script, make sure you have the following installed locally:
+  (1) Python
+  (2) Python Requests library
 
 usage: flow_coverage_report.py [-h] [--org ORG] [--debug-auth] [--api-version API_VERSION]
                                [--instance-url INSTANCE_URL] [--access-token ACCESS_TOKEN] [--list-orgs]
