@@ -1,79 +1,167 @@
-# salesforce-flow-coverage
-Python script to report on salesforce flow coverage for your org
+# Salesforce Flow Coverage Reporter
 
-Before executing this script, make sure you have the following installed locally:
-  (1) Python
-  (2) Python Requests library
+Generate a Salesforce Flow test coverage report for active Flow versions in a Salesforce org.
 
-usage: flow_coverage_report.py [-h] [--org ORG] [--debug-auth] [--api-version API_VERSION]
-                               [--instance-url INSTANCE_URL] [--access-token ACCESS_TOKEN] [--list-orgs]
-                               [--org-json ORG_JSON] [--org-aliases ORG_ALIASES] [--dump-org-json] [--elements]
-                               [--debug-elements] [--debug-tests]
+## What it does
 
-Generate Flow test coverage report from a selected Salesforce org (ACTIVE Flow versions only).
+- Connects to a Salesforce org using `sf`, `sfdx`, or direct credentials.
+- Queries Flow test coverage through the Salesforce Tooling API.
+- Prints a per-flow coverage table.
+- Prints an org-level Flow coverage summary.
+- Exports results to a timestamped CSV file.
+- Optionally includes executed Flow element names and Apex test method provenance.
 
-options:
-  -h, --help            show this help message and exit
-  --org ORG             Org alias or username (sf or sfdx CLI). If omitted, interactive selection attempted.
-  --debug-auth          Enable verbose auth selection diagnostics.
-  --api-version API_VERSION
-                        Override API version (default env SF_API_VERSION or 60.0).
-  --instance-url INSTANCE_URL
-                        Direct instance URL (skip CLI org selection).
-  --access-token ACCESS_TOKEN
-                        Direct access token (skip CLI org selection).
-  --list-orgs           List available org aliases/usernames and exit.
-  --org-json ORG_JSON   Path to saved 'sf org list --json' output to use when CLI listing fails.
-  --org-aliases ORG_ALIASES
-                        Comma-separated aliases if no CLI/org JSON available.
-  --dump-org-json       After selection, dump parsed org list to flow_orgs_dump.json for troubleshooting.
-  --elements            Include executed Flow element names (single column ExecutedElementNames from FlowElementTestCoverage).
-  --debug-elements      Verbose executed element diagnostics (bulk FlowElementTestCoverage query).
-  --debug-tests         Verbose Apex test method provenance diagnostics (FlowTestCoverage & ApexClass queries).
+## Requirements
 
-Examples:
-  1) Interactive selection (spinner, then menu):
-     python flow_coverage_report.py
+- Python 3.8+
+- Salesforce CLI: `sf` recommended, `sfdx` supported as fallback
+- Python package: `requests`
+- An authenticated Salesforce org
 
-  2) Specify org alias directly (non-interactive):
-     python flow_coverage_report.py --org MyProdAlias
+## Installation
 
-  3) Override API version (e.g. 61.0):
-     python flow_coverage_report.py --org MyProdAlias --api-version 61.0
+```bash
+git clone https://github.com/magdielhf/salesforce-flow-coverage.git
+cd salesforce-flow-coverage
+python -m pip install requests
+```
 
-  4) List orgs only (no coverage queries):
-     python flow_coverage_report.py --list-orgs
+## Authenticate to Salesforce
 
-  5) Use saved JSON from prior 'sf org list --json':
-     python flow_coverage_report.py --org-json orgs.json --list-orgs
+```bash
+sf org login web --alias MySandbox
+```
 
-  6) Manual credentials (CI/CD or when CLI unavailable):
-     python flow_coverage_report.py --instance-url https://yourInstance --access-token YOUR_TOKEN
+Or use direct credentials:
 
-  7) Enable auth diagnostics & dump org list:
-     python flow_coverage_report.py --debug-auth --dump-org-json --list-orgs
+```bash
+export SF_INSTANCE_URL="https://yourInstance.my.salesforce.com"
+export SF_ACCESS_TOKEN="YOUR_ACCESS_TOKEN"
+```
 
-  8) Provide aliases fallback (no CLI):
-     python flow_coverage_report.py --org-aliases MyProdAlias,MySandboxAlias --list-orgs
+## Quick start
 
-Environment Variables:
-  SF_API_VERSION      -> default API version (e.g. 60.0)
-  SF_PROCESS_TYPES    -> comma-separated ProcessTypes filter (e.g. AutoLaunchedFlow,Flow)
-  SF_INSTANCE_URL     -> direct instance URL fallback if selection fails
-  SF_ACCESS_TOKEN     -> direct token fallback
-  SF_ORG_JSON_PATH    -> path to saved 'sf org list --json' output for offline listing
+Interactive org selection:
 
-  SF_MAX_TEST_METHODS -> max unique Apex test method entries per Flow (default 300)
+```bash
+python flow_coverage_report.py
+```
 
-Exit Codes:
-  0 success / user exit (menu option 0)
-  1 no orgs found in listing mode
-  2 other errors (auth, API, parsing)
+Run against a specific org alias:
 
-Legend in report:
-  ✔ indicates FlowVersion has at least one FlowTestCoverage record
-Element Detail (--elements flag):
-  Adds a single ExecutedElementNames column listing unique FlowElementTestCoverage.ElementName values executed by Apex tests for each active Flow version.
-Test Method Provenance (always included):
-  Adds TestMethods column with unique 'ApexClassName.TestMethodName' entries showing which tests exercised each FlowVersion.
-  Fallback logic: If TestMethodName is not available, resolves ApexTestMethodId -> (ApexClassId, Name) via ApexTestMethod and ApexClass queries.
+```bash
+python flow_coverage_report.py --org MySandbox
+```
+
+List available orgs:
+
+```bash
+python flow_coverage_report.py --list-orgs
+```
+
+Generate a report with executed Flow elements:
+
+```bash
+python flow_coverage_report.py --org MySandbox --elements
+```
+
+## Common options
+
+| Option | Description |
+|---|---|
+| `--org ORG` | Salesforce org alias or username. |
+| `--list-orgs` | Lists available authenticated orgs and exits. |
+| `--api-version VERSION` | Overrides the Salesforce API version. |
+| `--elements` | Adds executed Flow element names to the CSV. |
+| `--debug-auth` | Prints authentication and org-selection diagnostics. |
+| `--debug-elements` | Prints Flow element coverage diagnostics. |
+| `--debug-tests` | Prints Apex test provenance diagnostics. |
+| `--instance-url URL` | Uses a direct Salesforce instance URL. |
+| `--access-token TOKEN` | Uses a direct Salesforce access token. |
+
+## Environment variables
+
+| Variable | Purpose |
+|---|---|
+| `SF_API_VERSION` | Salesforce API version used for Tooling API calls. |
+| `SF_PROCESS_TYPES` | Comma-separated Flow process types to include. |
+| `SF_INSTANCE_URL` | Direct instance URL fallback. |
+| `SF_ACCESS_TOKEN` | Direct access token fallback. |
+| `SF_ORG_JSON_PATH` | Path to saved `sf org list --json` output. |
+| `SF_MAX_TEST_METHODS` | Max Apex test method entries per Flow. |
+
+## Output
+
+The script prints:
+
+1. A per-flow coverage table.
+2. An org-level Flow coverage summary.
+3. A CSV file named like:
+
+```text
+flow_coverage_active_only_1712345678.csv
+```
+
+The CSV includes fields such as:
+
+```text
+FlowLabel, FlowApiName, ProcessType, VersionNumber, FlowVersionId,
+ElementsTotal, ElementsCovered, ElementsNotCovered, CoveragePercent,
+TestMethods
+```
+
+When `--elements` is used, the CSV also includes:
+
+```text
+ExecutedElementNames
+```
+
+## Report legend
+
+`✔` means the Flow version has at least one `FlowTestCoverage` row and contributes to the covered-flow numerator.
+
+## Exit codes
+
+| Code | Meaning |
+|---:|---|
+| `0` | Success or user-selected exit. |
+| `1` | No orgs found in listing mode. |
+| `2` | Authentication, API, parsing, or other runtime error. |
+
+## Troubleshooting
+
+### No orgs found
+
+Log in with Salesforce CLI:
+
+```bash
+sf org login web --alias MySandbox
+```
+
+Then verify the org appears:
+
+```bash
+sf org list
+```
+
+### Authentication issues
+
+Run with auth diagnostics:
+
+```bash
+python flow_coverage_report.py --debug-auth --list-orgs
+```
+
+### CI/CD usage
+
+Use direct credentials:
+
+```bash
+python flow_coverage_report.py \
+  --instance-url "$SF_INSTANCE_URL" \
+  --access-token "$SF_ACCESS_TOKEN"
+```
+
+## License
+
+MIT
